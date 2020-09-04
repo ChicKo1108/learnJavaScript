@@ -159,6 +159,87 @@ function addQueryString(url, name, value) {
 var xhr = new XMLHttpRequest();
 xhr.open('post','example.txt',true);
 xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-xhr.send('[nuber=10]');
+xhr.send(serialize(form)); // serialize(form)为表单序列化函数。
 ```
 
+### 1.2 XMLHttpRequest 2级
+
+> 并非所有浏览器都实现了XMLHttpRequest 2级规范，但是所有浏览器都实现了它规定的部分。
+
+#### 1.2.1 FormData
+
+​	FormData用于表单序列化以及创建与表单格式相同的数据。可以用其替代表单序列化函数。
+
+```js
+var data = new FormData();
+data.append('name','Nichoals');
+```
+
+​	这个append()方法接受两个参数：键和值。分别对应表单字段的名字和字段所包含的值。可以像这样添加任意多个键值对。而通过想FormData构造函数中传入表单元素，也可以用表单元素的数据预先向其中填入键值对。
+
+```js
+var data = new FormData(document.forms[0]);
+```
+
+​	创建了FormData的实例后，可以直接将其传给XHR的send()方法，如下：
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.onreadtstatechange = function(){
+    if(xhr.readystate == 4) {
+        if(xhr.status >= 200 && xhr.status < 300 || xhr.status == 304) {
+            alert(xhr.reponseText);
+        }else {
+            alert('unsuccessful!');
+        }
+    }
+}
+xhr.open('post','example.php',true);
+var form = document.querySelector('form');
+xhr.send(new FormData(form));
+```
+
+​	使用FormData的方便之处在于不必设置请求头部信息，XHR对象能够识别传入的数据是FormData的实例，并自动适配适当的头部信息。
+
+#### 1.2.2 超时设定
+
+​	当给XHR对象设置timeout属性时，如果请求在规定的ms内没有返回，则会终止请求，同时出发timeout事件，进而调用ontimeout事件处理程序。
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.onreadtstatechange = function(){
+    if(xhr.readystate == 4) {
+        try{
+            if(xhr.status >= 200 && xhr.status < 300 || xhr.status == 304) {
+                alert(xhr.reponseText);
+            }else {
+                alert('unsuccessful!');
+        }
+        }catch (e){
+            // 由ontimeout事件处理程序处理
+        }
+    }
+}
+xhr.open('post','example.php',true);
+xhr.timeout = 2000;
+xhr.ontimeout = function(){
+    alert('Request did not return in two second.')
+}
+var form = document.querySelector('form');
+xhr.send(new FormData(form));
+```
+
+​	在这个示例中，将timeout设置为2000，意味着请求在2s内还没有返回，就会自动终止。请求终止时会调用ontimeout事件处理程序。但此时readyState可能已经变为4了，如果程序中了再调用status属性，就会发生错误。为了避免浏览器报错，可将检查status的代码片段放入try-catch语句中。（IE8+）
+
+#### 1.2.3 overrideMimeType()方法
+
+该方法用于重写XHR响应的MIME类型。
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.open('get','example.php',true);
+xhr.overrideMimeType('text/xml');
+xhr.send(null);
+```
+
+这个例子强迫XHR对象将响应作为XML而非纯文本来处理。调用overrideMimeType()方法必须在send()方法之前，才能保证重写响应的Mime类型。
