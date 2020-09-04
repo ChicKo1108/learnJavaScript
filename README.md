@@ -233,7 +233,7 @@ xhr.send(new FormData(form));
 
 #### 1.2.3 overrideMimeType()方法
 
-该方法用于重写XHR响应的MIME类型。
+​	该方法用于重写XHR响应的MIME类型。
 
 ```js
 var xhr = new XMLHttpRequest();
@@ -242,4 +242,68 @@ xhr.overrideMimeType('text/xml');
 xhr.send(null);
 ```
 
-这个例子强迫XHR对象将响应作为XML而非纯文本来处理。调用overrideMimeType()方法必须在send()方法之前，才能保证重写响应的Mime类型。
+​	这个例子强迫XHR对象将响应作为XML而非纯文本来处理。调用overrideMimeType()方法必须在send()方法之前，才能保证重写响应的Mime类型。
+
+### 1.3 进度事件
+
+6个进度事件
+
+- loadstart：在接受响应数据的第一个字节时触发。
+- progress：在接受响应期间持续不断地触发。
+- error：在请求时发生错误时触发。
+- abort：在因为调用abort()方法而终止时触发。
+- load：在接受到完整的相应数据时触发。
+- loadend：在通信完成或者触发error、abort或load事件后触发。
+
+#### 1.3.1 load事件
+
+​	load事件可以替代readystatechange事件。响应接受完毕后将触发load事件，因此也就没必要检查readyState属性了。onload事件处理程序会接收到一个event对象，其target属性就指向XHR对象实例，因而可以访问到XHR对象的所有方法和属性。
+
+​	然而，并非所有浏览器都为这个事件实现了适当的实践对象。因此，开发人员仍需继续是有XHR对象变量。
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.onload = function() {
+    if((xhr.status>=200 && xhr.status < 300) || xhr.status == 304) {
+        // 成功操作
+    }else {
+        // 失败操作
+    }
+}
+xhr.open('get', 'example.php', true);
+xhr.send(null);
+```
+
+​	只要浏览器接收到服务器的响应，不管其状态如何，都会触发load事件。而这意味着你必须要检查status属性，才能确定数据是否真的已经可用了。
+
+#### 1.3.2 progress事件
+
+​	该事件会在浏览器接收新数据的时候触发。而onprogress事件处理程序会接受到一个event对象，其target属性是XHR对象，但包含其他三个属性：
+
+- lengthComputable：表示进度信息是否可用的布尔值
+- position：表示已经接收的字节数
+- totalSize：表示根据Content-Type响应头部确定的预期字节数
+
+可以通过该属性实现一个进度指示器：
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.onload = function() {
+    if((xhr.status>=200 && xhr.status < 300) || xhr.status == 304) {
+        // 成功操作
+    }else {
+        // 失败操作
+    }
+}
+xhr.onprogress = function(event) {
+    let divStatus = document.querySelector('status');
+    if(event.lengthComputable) {
+        divStatus.innerHTML = "Recieved" + event.positon + "of" + event.totalSize + "bytes";
+    }
+}
+xhr.open('get', 'example.php', true);
+xhr.send(null);
+```
+
+​	为确保正确执行，必须在open()方法之前添加onprogress事件处理程序。
+
