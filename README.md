@@ -307,3 +307,136 @@ xhr.send(null);
 
 ​	为确保正确执行，必须在open()方法之前添加onprogress事件处理程序。
 
+### 1.4 跨域资源共享
+
+​	通过XHR实现Ajax通信的一个主要限制，来源于跨域安全策略。默认情况下，XHR对象只能访问与包含它的页面位于同一个域中的资源。这种安全策略可以预防某些恶意行为。但是实现合理的跨域也是至关重要的。
+
+​	CORS(Cross-Origin Resource Sharing，跨域资源共享)，其背后思想是使用自定义的HTTP的头部信息让浏览器与服务器进行沟通，从而决定请求或响应是否成功。
+
+​	比如一个简单GET或POST请求，他没有自定义的头部，而主体内容是text/plain，在发送请求时，需要给他额外附加一个Origin头部，其中包含请求页面的源信息（协议、域名和端口号），以便服务器决定是否给予响应。下面是Origin头部的一个实例：
+
+```http
+Origin: http://www.nczonline.net
+```
+
+​	如果服务器认为这个请求可以接受，就在Access-Control-Allow-Origin头部会发相同的源信息（如果是公共资源，可以回发“*”）。例如：
+
+```http
+Access-Control-Allow-Origin: http://www.nczonline.net
+```
+
+​	如果没有这个头部信息，或者有但是源信息不匹配，浏览器就会驳回请求。正常情况下，浏览器会处理请求。**注意，请求和响应都不会包含cookie信息。**
+
+#### 1.4.1 IE对CORS的实现
+
+​	IE8中引入了XDR(XDomainRequest)类型。这个类型与XHR类似，但是可以实现安全可靠的跨域通信。以下是XDR与XHR不同的地方：
+
+- cookie不会随请求发送，也不会随着响应返回。
+- 只能设置请求头的Content-Type属性。
+- 不能访问响应头部信息。
+- 只支持GET和POST请求。
+
+​	这些变化使得CSRF(Cross-Site Request Forgery，跨站点请求伪造)和XSS(Cross-site Scripting，跨站点脚本)的问题得到了缓解。
+
+​	XDR对象的使用方法与XHR也非常相似。需要创建一个XDomainRequest的实例，调用open()方法，再调用send()方法。但是XDR对象的open()方法只有两个参数：请求的类型和URL。
+
+​	所有XDR对象的请求都是异步的，不能用它来创建同步请求。请求返回之后会触发load事件，响应的数据也会保存在responseText属性中，如下所示：
+
+```js
+var xdr = new XDomainRequest();
+xdr.onload = function(){
+    alert(xdr.responseText);
+}
+xdr.open('get','example.php');
+xdr.send(null);
+```
+
+​	在接收到响应之后，你只能访问响应的原始文本，无法访问响应的状态码。而且，只要响应有效就会触发load事件，如果失败（包括响应中缺少Access-Contorl-Allwo-Origin头部信息）就会触发error事件。但是除了错误本身就没有其他信息可以使用了，所以只能确定是否有错误发生。如果要检测错误，如下所示：
+
+```js
+var xdr = new XDomainRequest();
+xdr.onload = function() {
+	alert(xdr.responseText);
+}
+xdr.onerror = function() {
+    alert('an error occurred');
+}
+xdr.open('get','example.php');
+xdr.send(null);
+```
+
+​	与XHR对象相同，XDR对象也支持**timeout**属性以及**ontimeout**事件处理程序。
+
+​	此外，为了配合POST请求，XDR对象可以通过**ContentType**属性设置发送数据的类型。
+
+#### 1.4.2 其他浏览器对CORS的实现
+
+​	除了IE外的所有浏览器都通过XMLHttpRequest对象实现了对CORS的原生支持。在尝试打开不同源的资源时，无需额外编写代码就可以触发这个行为。要请求位于另一个域中的资源，使用标准的XHR对象并在open()方法中传入绝对URL即可，例如：
+
+```js
+var xhr = new XMLHttpRequest();
+xhr.onreadystatechange = function() {
+    if(xhr.readyState == 4) {
+        if(xhr.status == 200) {
+            alert(xhr.responseText);
+        }else {
+            alert('Unsuccessfully!');
+        }
+    }
+}
+xhr.open('get','http://other-origin-site.com/user',true);
+xhr.send(null);
+```
+
+​	与IE浏览器中的XDR对象不同的是，跨域XHR对象可以访问status和statusText属性，还支持同步请求。跨域XHR也有一些限制：
+
+- 不能使用setRequestHeader()设置自定义响应头。
+- 不能发送和接受cookie。
+- 调用getAllResponseHeaders()方法总是返回空字符串。
+
+​	由于无论是同源请求还是跨域请求都是用相同的接口，因此对于本地资源，最好使用相对的URL，在访问远程的资源时使用绝对的URL。这样可以消除歧义，避免出现限制访问头部或本地cookie信息等问题。
+
+#### 1.4.3 Preflighted Request
+
+CORS通过名为preflighted Request的透明服务器验证机制，支持开发人员使用自定义头部、GET和POST以外的方法以及不同类型的主题内容。在使用以下高级选项来发送请求时，就会向服务器发送一个preflight请求，这种请求使用OPTIONS方法。
+
+- Origin：与简单的请求相同。
+- Access-Control-Request-Method：请求自身使用的方法。
+- Access-Control-Request-Headers：（可选）自定义的头部信息，多个头部以逗号分割。
+
+​	以下是带有自定义头部ChicKo的使用POST方法的请求：
+
+```http
+Origin: http://www.github.com/ChicKo1108
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Chicko
+```
+
+​	发送这个请求后，服务器可以决定是否允许这种类型的请求：
+
+- Access-Control-Allow-Origin：与简单的请求相同。
+- Access-Control-Allow-Methods：允许的方法，多个方法以逗号分割。
+- Access-Control-Allow-Headers：允许的头部，多个头部以逗号分隔。
+- Access-Control-Max-Age：应该将这个Preflight请求缓存多长时间（以秒表示）
+
+```http
+Access-Control-Allow-Origin: http://www.github.com/ChicKo1108
+Access-Control-Allow-Methods: POST, GET
+Access-Control-Allow-Headers: Chicko
+Access-Control-Max-Age: 60*60*24*7 
+```
+
+​	**IE10以及更早版本不支持Preflight请求。**
+
+#### 1.4.4 带凭证的请求
+
+​	默认情况下，跨域的请求不提供凭证（cookie、HTTP认证以及SSL客户端证明等）。可以通过将withCredentials属性设置为true，指定某个请求发送凭证。如果服务器接收带凭证的请求，会用下面的HTTP头部来响应请求。
+
+```http
+Access-Control-Allow-Credentials: true
+```
+
+​	如果发送了带凭证的请求，但是服务器的响应中没有包含这个头部，name浏览器不会将响应交给JavaScript，于是，responseText是空字符串，status的值是0，而且会调用onerror()事件处理程序。
+
+​	**IE10以及更早版本不支持该属性。**
+

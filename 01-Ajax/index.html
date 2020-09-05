@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      div {
+        width: 200px;
+        height: 400px;
+        border: 1px solid #999;
+        padding: 10px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello World!</h1>
+    <p>this is index.html</p>
+    <div>
+      <p>晋级名单</p>
+    </div>
+    <button>获取名单</button>
+    <script>
+      let btn = document.querySelector("button");
+      btn.onclick = function () {
+        var xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          if ((xhr.status >= 200 && xhr.status < 300) || xhr.status == 304) {
+            document.querySelector("div").innerText = xhr.responseText;
+          } else {
+            alert("unsuccessful!");
+          }
+        };
+        xhr.open("get", "./person.json", true);
+        xhr.timeout = 1000;
+        xhr.send(null);
+      };
+    </script>
+  </body>
+</html>

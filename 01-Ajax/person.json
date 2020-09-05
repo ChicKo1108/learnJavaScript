@@ -1,0 +1,17 @@
+[
+  {
+    "name": "zs",
+    "age": 18,
+    "hobby": ["sing","dance","basketball"]
+  },
+  {
+    "name": "ww",
+    "age": 22,
+    "hobby": ["sing","dance","rap"]
+  },
+  {
+    "name": "kk",
+    "age": 23,
+    "hobby": ["sing","dance","rap","basketball"]
+  }
+]
