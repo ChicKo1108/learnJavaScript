@@ -440,3 +440,166 @@ Access-Control-Allow-Credentials: true
 
 ​	**IE10以及更早版本不支持该属性。**
 
+### 1.5 其它跨域技术
+
+​	在CORS技术出现以前，要实现跨域AJAX要花费一些周折。虽然CORS技术已经无处不在，但是开发人员自己发明的这些技术仍然被广泛使用，毕竟这样不需要修改服务器端代码。
+
+#### 1.5.1 图像Ping
+
+​	我们可以使用`<img>`标签进行跨域，动态创建图像，并通过它们的onload和onerror事件处理程序来确定是否创建了响应。
+
+​	动态创建图像经常用于**图像Ping**，图像ping是与服务器进行简单、单向的跨域通信的一种方式。请求的数据是通过查询字符串发送的，而响应可以是任意类型的，但通常是像素图或者204响应。通过图像ping，浏览器得不到任何具体的数据，但通过监听load和error事件，它能指导是什么时候接受到的。
+
+```js
+const img = new Image();
+img.onload = img.onerror = function() {
+    alert('done!');
+}
+img.src = 'http://www.example.com/test?name=Leo';
+```
+
+​	在这个例子中创建了一个Image实例，然后将onload和onerror指定为同一个函数。这样无论是什么响应，只要请求完成，就能得到通知。
+
+​	图像ping最常用于跟踪用户点击页面或动态广告曝光次数。图像ping有两个缺点，一是只能发送get请求，二是无法访问服务器的响应文本。因此，图像ping只能用于浏览器与服务器键的单向通信。
+
+#### 1.5.2 JSONP
+
+​	JSONP是JSON with padding（填充式JSON）的简写。他与JSON类似，只不过是被包含在函数中调用的JSON。像这样`callback({"name":"chicko"})`。
+
+​	JSONP由两部分组成：回调函数和数据。回调函数是当响应到来时应该在页面调用的函数。回调函数的名字一般在请求中指定。而数据就是传入回调函数中的JSON数据。下面是一个JSONP请求：
+
+```http
+http://freegeoip.net/json/?callback=handleResponse
+```
+
+​	这个URL是在请求一个地理定位服务。通过查询字符串来指定JSONP服务的回调参数，在这里回调函数的名字就叫做handelResponse。
+
+​	JSONP是通过动态创建`<script>`标签来实现的，使用时可以为src制定一个跨域URL。因为JSONP是有效地JavaScript代码，所以在请求完成后，即在JSONP响应加载到页面中后，就会立即执行。
+
+```js
+function handelResponse(response) {
+    alert("you'er at IP address" + response.ip + ", which is in" + response.city);
+}
+var script = document,createElement('script');
+script.src = 'http://freegeoip.net/json/?callback=handelResponse';
+document.body.insertBefore(script, document.body.firstChild);
+```
+
+​	这个例子通过查询地理定位服务来显示你的IP地址和位置信息。
+
+​	与图像PING相比，他的优点是可以直接访问响应文本。但是也有两点不足：
+
+​	一、JSONP是从其他域中加载代码执行。如果其他域不安全，可能会在响应中夹带一些恶意代码，而此时除了完全放弃JSONP调用之外，没有办法追究。因此如果不是你自己运维的web服务时，一定得保证它安全可靠。
+
+​	二、要确定JSONP请求是否失败并不容易。虽然HTML5给script标签新增了一个onerror事件处理程序，但是没有得到任何浏览器支持。
+
+#### 1.5.3 comet
+
+​	实现comet有两种方式：长轮询和流。
+
+​	无论是长轮询还是短轮询，浏览器都要在接收数据之前，先对服务器发起连接。两者最大的区别在于服务器如何发送数据。段轮询是服务器立即发送响应，无论数据是否有效，而长轮询是等待发送响应。轮询的优势是所有浏览器都支持，因为使用XHR对象和setTimeout()就能实现。你要做的就是决定什么时候发送请求。
+
+​	第二种流行的comet实现方式是HTTP流。流不同于上述两种轮询，因为它在页面的整个生命周期内只使用一个HTTP连接。具体来说，就是浏览器向服务器发送一个请求，而服务器保持连接打开，然后周期性的向浏览器发送数据。
+
+​	所有服务器端语言都支持打印输出缓存然后刷新（将输出缓存中的内容一次性的全部发送给客户端）的功能。而这正是实现HTTP流的关键所在。
+
+​	在非IE浏览器中，通过侦听readystatechange事件以及检测readyState的值是否为3，就可以利用XHR对象实现HTTP流。随着不断从服务器接收数据，readyState的值会周期性的变为3。当readyState的值变为3时，responseText属性中的值就会保存接收到所有的数据。此时，就需要比较此前接收到的数据，决定从什么位置开始取得最新的数据。使用XHR对象实现HTTP流的典型代码如下：
+
+```js
+function createStreamingClient(url, progress, finished) {
+    var xhr = new XMLHttpRequest(),
+        received = 0;
+    
+    xhr.open("get",url,true);
+    xhr.onreadystatechange = function(){
+        var result;
+        
+        if(xhr.readyState == 3) {
+            
+            // 只取得最新数据并调整计数器
+            result = xhr.responseText.subString(received);
+            received += result.length;
+            
+            // 调用progress回调函数。
+            progress(result);
+            
+        }else if (xhr.readyState == 4) {
+            finished(xhr.responseText);
+        }
+    };
+    xhr.send(null);
+    return xhr;
+}
+
+var client = createStreamingClinet("streaming.php", function(data) {
+    alert("received:" + data);
+},function(data) {
+    alert("done!");
+})
+```
+
+​	这个createStreamingClient()函数接受三个参数：要连接的url，在接收到数据时调用的函数以及关闭连接时调用的函数。有时候关闭连接时，可能还需要重新建立，所以关注连接什么时候关闭还是有必要的。
+
+​	虽然这个例子比较简单，而且也能在大多数浏览器（除IE外）能正常运行，但是管理Comet的连接是很容易出错的，需要时间不断改进才能达到完美。为了简化这一技术，又为comet创建了两个新的接口。
+
+#### 1.5.4 服务器发送事件
+
+​	SSE(Server Send Event，服务器发送事件)是围绕只读comet交互推出的API或模式。SSE API用于创建到服务器的单向连接，服务器通过这个连接可以发送任意数量的数据。服务器响应的MIME类型必须是`text/event-stream`，而且是浏览器中的JavaScript API能够解析格式输出。SSE支持段轮询、长轮询和HTTP流，而且能在断开时自动确定何时重新连接。
+
+##### 1. SSE API
+
+​	SSE的JavaScript API与其他传递消息的API很相似。要预定新的事件流，首先要创建一个新的EventSource对象，并传进一个入口点：
+
+```js
+var source = new EventSource("myevents.php");
+```
+
+​	注意，传入的url必须与创建对象的页面同源。EventSource的实例有一个readyState属性，值0表示正在连接服务器，值为1表示打开了连接，值为2表示关闭了连接。
+
+​	另外，还有以下三个事件：
+
+- open：在建立连接时触发。
+- message：在从服务器接收到新事件时触发。
+- error：在无法简历连接时触发。
+
+
+​	onmessage事件没有什么特别的用法：
+
+```js
+source.onmessage = function(event) {
+    var data = event.data;
+    // 处理数据
+}
+```
+
+服务器返回的数据以字符串的形式保存在event.data中。
+
+如果想强制断开连接并且不再重新连接，可以调用close()方法。
+
+```js
+source.close();
+```
+
+##### 2. 事件流
+
+​	所谓的服务器事件会通过一个持久的HTTP响应发送，这个响应的MIME类型为`text/event-stream`。响应的格式是纯文本，最简单的情况是每个数据都带有前缀data:，例如：
+
+```
+data:foo
+
+data:bar
+
+data:foo
+data:bar
+```
+
+​	对于以上响应而言，事件流中的一个message事件返回的event.data是“foo”，第二个message事件返回的event.data是“bar”，第三个message事件返回的event.data是“foo\nbar”（注意中间的换行符）。只有在包含data:的数据后面有空行时，才会触发message事件，因此服务器上生成事件流时不能忘了多添加一个空行。
+
+​	通过id:前缀可以给特定的事件制定一个关联ID，这个ID行位于data:行前后都行：
+
+```js
+data:foo
+id:1
+```
+
+​	设置了id以后，eventSource对象会跟踪上一次触发的事件。如果连接断开，会向服务器发送一个包含名为`Last-Event-Id`的特殊HTTP头部请求，以便服务器指导下一次该触发哪个事件。在多次连接的事件流中，这种机制可以确保浏览器以正确的顺序收到连接的数据段。
