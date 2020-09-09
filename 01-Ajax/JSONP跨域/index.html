@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <h1>这里是端口号5000的首页</h1>
+    <p>我现在要通过端口号8081来请求person.json的数据！</p>
+    <button>点击开始</button>
+    <script>
+      document.querySelector("button").onclick = function () {
+        console.log(1);
+        var script = document.createElement("script");
+        script.src =
+          "http://localhost:8081/person.json?callback=handleCallback";
+        document.head.appendChild(script);
+      };
+
+      var handleCallback = function (res) {
+        console.log(JSON.parse(res));
+      };
+    </script>
+  </body>
+</html>
